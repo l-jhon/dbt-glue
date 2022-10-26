@@ -9,6 +9,7 @@
 
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
+  {%- set pre_combine_key = config.get('pre_combine_key', none) -%}
   {%- set custom_location = config.get('custom_location', default='empty') -%}
 
   {%- set full_refresh_mode = (flags.FULL_REFRESH == True) -%}
@@ -23,7 +24,7 @@
   {% endcall %}
 
   {% if file_format == 'hudi' %}
-        {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location) }}
+        {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, pre_combine_key, custom_location) }}
         {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
   {% else %}
       {% if strategy == 'insert_overwrite' and partition_by %}
@@ -67,4 +68,3 @@
   {{ return({'relations': [target_relation]}) }}
 
 {%- endmaterialization %}
-

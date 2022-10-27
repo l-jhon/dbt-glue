@@ -559,7 +559,7 @@ spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
 .getOrCreate()
 inputDf = spark.sql("""{request}""")
-outputDf = inputDf.drop("dbt_unique_key").withColumn(hudi_ts,current_timestamp())
+outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
     if {partition_key} is not None:
         '''
@@ -575,7 +575,7 @@ if outputDf.count() > 0:
         else:
             write_mode = "Overwrite"
             core_code = f'''
-        {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
+        {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
         {self.hudi_write(write_mode, session, target_relation, custom_location)}
     else:
         {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}

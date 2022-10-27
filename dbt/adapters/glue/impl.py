@@ -528,9 +528,10 @@ PARTITIONED BY ({part_list})
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, pre_combine_key, custom_location):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, hudi_timestamp_column, custom_location):
         session, client, cursor = self.get_connection()
         isTableExists = False
+        hudi_ts = hudi_timestamp_column or 'update_hudi_ts'
         if self.check_relation_exists(target_relation):
             isTableExists = True
         else:
@@ -542,7 +543,7 @@ PARTITIONED BY ({part_list})
         else:
             hudi_partitionning = ''
 
-        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': '{pre_combine_key}', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
+        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': '{hudi_ts}', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
 
         hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
 
@@ -558,10 +559,7 @@ spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
 .getOrCreate()
 inputDf = spark.sql("""{request}""")
-if {pre_combine_key} is not None:
-    outputDf = inputDf.drop("dbt_unique_key")
-else:
-    outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
+outputDf = inputDf.drop("dbt_unique_key").withColumn(hudi_ts,current_timestamp())
 if outputDf.count() > 0:
     if {partition_key} is not None:
         '''
